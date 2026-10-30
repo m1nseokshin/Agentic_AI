@@ -53,6 +53,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       id: record.id,
       reviewed: Boolean(rr.review),
       aiError: rr.error ?? undefined,
+      aiModel: process.env.GEMINI_MODEL ?? null,
     })
   } catch (err) {
     console.error('[apply] 저장 실패:', err)
