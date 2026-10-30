@@ -35,7 +35,7 @@ async function probe(label, url) {
 }
 
 const metaRes = await probe('meta /schema', `https://api.airtable.com/v0/meta/bases/${baseId}/tables`)
-const dataRes = await probe('data /records', `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}?maxRecords=1`)
+await probe('data /records', `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}?maxRecords=1`)
 
 if (!metaRes.ok) {
   console.error('\n-> meta 실패. 원인: ①토큰에 schema.bases:read 스코프 없음 ②베이스 ID 오타 ③토큰 Access에 이 베이스 미포함')
