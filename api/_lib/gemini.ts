@@ -18,7 +18,7 @@ export const CATEGORY_CODES = ['learning', 'campus', 'community', 'green', 'etc'
 const SLOW_MODELS = new Set(['gemini-3.8-flash'])
 const FAST_MODEL = 'gemini-3.5-flash'
 
-export function resolveModel(): string {
+function resolveModel(): string {
   const configured = process.env.GEMINI_MODEL?.trim()
   if (!configured || SLOW_MODELS.has(configured)) return FAST_MODEL
   return configured
