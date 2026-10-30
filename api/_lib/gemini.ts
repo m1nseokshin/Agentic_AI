@@ -13,6 +13,17 @@ export type Review = {
 
 export const CATEGORY_CODES = ['learning', 'campus', 'community', 'green', 'etc'] as const
 
+// gemini-3.8-flash는 응답이 30초 이상 걸려 서버 함수 제한을 자주 넘긴다.
+// 알려진 지연 모델이 설정되면 빠른 모델로 대체한다. (문서: docs/3단계_환경세팅_결과.md)
+const SLOW_MODELS = new Set(['gemini-3.8-flash'])
+const FAST_MODEL = 'gemini-3.5-flash'
+
+export function resolveModel(): string {
+  const configured = process.env.GEMINI_MODEL?.trim()
+  if (!configured || SLOW_MODELS.has(configured)) return FAST_MODEL
+  return configured
+}
+
 const SYSTEM_INSTRUCTION = `너는 아이디어 공모전의 1차 검토를 돕는 심사 보조원이다.
 주어지는 "아이디어 제목 / 아이디어 요약 / 기대 효과"만 읽고 다음 세 가지를 만든다.
 너의 결과는 최종 심사가 아니라 사람이 볼 "검토 초안"이다.
@@ -62,9 +73,9 @@ export async function reviewWithGemini(
   input: ReviewInput,
 ): Promise<{ review: Review; error: null } | { review: null; error: string }> {
   const key = process.env.GEMINI_API_KEY
-  const model = process.env.GEMINI_MODEL
-  if (!key || !model) {
-    console.error('[gemini] GEMINI_API_KEY/GEMINI_MODEL 미설정')
+  const model = resolveModel()
+  if (!key) {
+    console.error('[gemini] GEMINI_API_KEY 미설정')
     return { review: null, error: 'env-missing' }
   }
 

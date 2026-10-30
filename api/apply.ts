@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createRecord } from './_lib/airtable.js'
 import { validate } from './_lib/validation.js'
-import { reviewWithGemini, categoryToLabel } from './_lib/gemini.js'
+import { reviewWithGemini, categoryToLabel, resolveModel } from './_lib/gemini.js'
 
 export const config = { maxDuration: 60 }
 
@@ -53,7 +53,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       id: record.id,
       reviewed: Boolean(rr.review),
       aiError: rr.error ?? undefined,
-      aiModel: process.env.GEMINI_MODEL ?? null,
+      aiModel: resolveModel(),
     })
   } catch (err) {
     console.error('[apply] 저장 실패:', err)
