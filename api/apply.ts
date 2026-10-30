@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createRecord } from './_lib/airtable.js'
 import { validate } from './_lib/validation.js'
+import { reviewWithGemini, categoryToLabel } from './_lib/gemini.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -16,7 +17,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const v = result.value
-  const fields = {
+  const fields: Record<string, unknown> = {
     TeamName: v.TeamName,
     Members: v.Members,
     IdeaTitle: v.IdeaTitle,
@@ -27,9 +28,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     SubmittedAt: new Date().toISOString(),
   }
 
+  // AI 1차 검토 (실패해도 응모는 저장한다. 자동 재시도 없음)
+  const review = await reviewWithGemini({
+    IdeaTitle: v.IdeaTitle,
+    IdeaSummary: v.IdeaSummary,
+    ExpectedImpact: v.ExpectedImpact,
+  })
+  if (review) {
+    const label = categoryToLabel(review.category)
+    if (label) {
+      fields.AICategory = label
+      fields.AIScore = review.score
+      fields.AIScoreReason = review.scoreReason
+      fields.AIReviewDraft = review.review
+    }
+  }
+
   try {
     const record = await createRecord(fields)
-    res.status(200).json({ ok: true, id: record.id })
+    res.status(200).json({
+      ok: true,
+      id: record.id,
+      reviewed: Boolean(fields.AIScore),
+    })
   } catch (err) {
     console.error('[apply] 저장 실패:', err)
     res.status(502).json({ ok: false, message: '접수 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.' })
