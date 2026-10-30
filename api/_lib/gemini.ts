@@ -55,15 +55,17 @@ function buildUserContent(input: ReviewInput): string {
 }
 
 /**
- * Gemini로 1차 검토 초안을 생성한다. 실패하면 null을 반환한다(자동 재시도 없음).
+ * Gemini로 1차 검토 초안을 생성한다. 실패하면 error를 담아 반환한다(자동 재시도 없음).
  * 개인정보(팀명·구성원·연락처)는 전달하지 않는다.
  */
-export async function reviewWithGemini(input: ReviewInput): Promise<Review | null> {
+export async function reviewWithGemini(
+  input: ReviewInput,
+): Promise<{ review: Review; error: null } | { review: null; error: string }> {
   const key = process.env.GEMINI_API_KEY
   const model = process.env.GEMINI_MODEL
   if (!key || !model) {
     console.error('[gemini] GEMINI_API_KEY/GEMINI_MODEL 미설정')
-    return null
+    return { review: null, error: 'env-missing' }
   }
 
   try {
@@ -72,7 +74,7 @@ export async function reviewWithGemini(input: ReviewInput): Promise<Review | nul
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(30000),
+        signal: AbortSignal.timeout(55000),
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
           contents: [{ role: 'user', parts: [{ text: buildUserContent(input) }] }],
@@ -88,14 +90,14 @@ export async function reviewWithGemini(input: ReviewInput): Promise<Review | nul
     if (!res.ok) {
       const detail = await res.text().catch(() => '')
       console.error(`[gemini] 호출 실패 ${res.status}: ${detail.slice(0, 200)}`)
-      return null
+      return { review: null, error: `http-${res.status}` }
     }
 
     const data = (await res.json()) as {
       candidates?: { content?: { parts?: { text?: string }[] } }[]
     }
     const text = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? ''
-    if (!text) return null
+    if (!text) return { review: null, error: 'empty' }
 
     const parsed = JSON.parse(text) as {
       category?: unknown
@@ -111,17 +113,17 @@ export async function reviewWithGemini(input: ReviewInput): Promise<Review | nul
 
     if (!CATEGORY_CODES.includes(category as (typeof CATEGORY_CODES)[number])) {
       console.error('[gemini] 유효하지 않은 분야:', category)
-      return null
+      return { review: null, error: 'bad-category' }
     }
     if (!Number.isInteger(score) || score < 1 || score > 5) {
       console.error('[gemini] 유효하지 않은 평점:', score)
-      return null
+      return { review: null, error: 'bad-score' }
     }
-    if (!scoreReason || !review) return null
+    if (!scoreReason || !review) return { review: null, error: 'empty-fields' }
 
-    return { category, score, scoreReason, review }
+    return { review: { category, score, scoreReason, review }, error: null }
   } catch (err) {
     console.error('[gemini] 오류:', err)
-    return null
+    return { review: null, error: 'exception' }
   }
 }

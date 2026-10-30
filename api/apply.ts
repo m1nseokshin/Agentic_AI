@@ -3,6 +3,8 @@ import { createRecord } from './_lib/airtable.js'
 import { validate } from './_lib/validation.js'
 import { reviewWithGemini, categoryToLabel } from './_lib/gemini.js'
 
+export const config = { maxDuration: 60 }
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     res.status(405).json({ ok: false, message: 'Method Not Allowed' })
@@ -29,18 +31,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // AI 1차 검토 (실패해도 응모는 저장한다. 자동 재시도 없음)
-  const review = await reviewWithGemini({
+  const rr = await reviewWithGemini({
     IdeaTitle: v.IdeaTitle,
     IdeaSummary: v.IdeaSummary,
     ExpectedImpact: v.ExpectedImpact,
   })
-  if (review) {
-    const label = categoryToLabel(review.category)
+  if (rr.review) {
+    const label = categoryToLabel(rr.review.category)
     if (label) {
       fields.AICategory = label
-      fields.AIScore = review.score
-      fields.AIScoreReason = review.scoreReason
-      fields.AIReviewDraft = review.review
+      fields.AIScore = rr.review.score
+      fields.AIScoreReason = rr.review.scoreReason
+      fields.AIReviewDraft = rr.review.review
     }
   }
 
@@ -49,7 +51,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(200).json({
       ok: true,
       id: record.id,
-      reviewed: Boolean(fields.AIScore),
+      reviewed: Boolean(rr.review),
+      aiError: rr.error ?? undefined,
     })
   } catch (err) {
     console.error('[apply] 저장 실패:', err)
